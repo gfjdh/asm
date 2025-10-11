@@ -1,5 +1,5 @@
 STKSEG SEGMENT STACK        ; 定义堆栈段
-    DW 32 DUP(0)            ; 分配32个字(64字节)的堆栈空间
+    DW 32 DUP(0)            ; 分配堆栈空间
 STKSEG ENDS                 ; 堆栈段结束
 
 DATASEG SEGMENT             ; 定义数据段
@@ -23,6 +23,10 @@ CODESEG SEGMENT             ; 定义代码段
 MAIN PROC FAR               ; 主程序（远过程）
     MOV AX, DATASEG         ; 将数据段地址加载到AX
     MOV DS, AX              ; 设置DS指向数据段
+    ; 初始化堆栈段和栈指针（必须，否则中断/调用可能破坏内存或导致死机）
+    MOV AX, STKSEG         ; 将堆栈段地址加载到AX
+    MOV SS, AX             ; 设置SS指向堆栈段
+    MOV SP, 64             ; 设置SP到堆栈顶部（32个字 = 64字节）
 
     ; 打印"x y"后跟换行
     MOV AH, 09H             ; DOS功能号09H（显示字符串）
@@ -63,14 +67,20 @@ INNER_LOOP:
     JE SKIP_ERROR           ; 如果相等，跳过错误处理
 
     ; 打印错误信息：行号(i+1)、空格、列号(j+1)、空格、"error"
-    MOV DL, SI + 1          ; DL = i+1（行号）
-    ADD DL, '0'             ; 转换为ASCII字符
+    MOV AX, SI              ; AX = i
+    INC AX                  ; AX = i+1
+    ADD AL, '0'             ; 转换为ASCII字符
+    MOV DL, AL              ; DL = 行号的ASCII字符
     MOV AH, 02H             ; DOS功能号02H（显示字符）
     INT 21H                 ; 打印行号
     MOV DL, ' '             ; DL = 空格
+    MOV AH, 02H             ; 确保功能号为显示字符
     INT 21H                 ; 打印空格
-    MOV DL, DI + 1          ; DL = j+1（列号）
-    ADD DL, '0'             ; 转换为ASCII字符
+    MOV AX, DI              ; AX = j
+    INC AX                  ; AX = j+1
+    ADD AL, '0'             ; 转换为ASCII字符
+    MOV DL, AL              ; DL = 列号的ASCII字符
+    MOV AH, 02H             ; 确保功能号为显示字符
     INT 21H                 ; 打印列号
     MOV AH, 09H             ; DOS功能号09H（显示字符串）
     MOV DX, OFFSET MSG2     ; 加载MSG2的偏移地址（"  error"）
