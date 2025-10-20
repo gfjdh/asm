@@ -4,8 +4,7 @@ STKSEG ENDS					; 堆栈段结束
 
 ; 定义数据段，用于存储程序的数据
 DATASEG SEGMENT
-	; 不使用单一 MSG 字符串，用按字符输出
-	CRLF DB 13,10,'$'
+	CRLF DB 13,10,'$'	        ; 不使用单一 MSG 字符串，用按字符输出
 DATASEG ENDS					; 数据段结束
 
 ; 定义代码段，包含程序的执行代码
@@ -61,5 +60,5 @@ skip_crlf:
 	MOV AX,4C00H			; 设置程序正常结束功能号(4CH)和返回码(00H)
 	INT 21H				; 调用DOS中断21H，结束程序并返回到DOS
 MAIN ENDP				; 主程序结束
-	CODESEG ENDS			; 代码段结束
-		END MAIN			; 程序结束，指定程序入口点为MAIN
+CODESEG ENDS			; 代码段结束
+	END MAIN			; 程序结束，指定程序入口点为MAIN
