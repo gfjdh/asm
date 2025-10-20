@@ -13,52 +13,50 @@ CODESEG SEGMENT
 MAIN PROC FAR			; 定义主程序，FAR表示远过程调用
 	MOV AX,DATASEG			; 将数据段的段地址加载到AX寄存器
 	MOV DS,AX			; 将AX的值赋给DS寄存器，设置数据段寄存器
-
-	; BL 用作当前行字符计数 (0..12)
-	MOV BL,0
-	; AL 保存当前字符，初始为 'a'
+	; 使用更稳健的循环：
+	; CX = 剩余要打印的字母数 (26)
+	; BH = 每行剩余计数 (初始 13)
+	MOV CX,26
+	MOV BH,13
 	MOV AL,'a'
 
-print_loop:
-	; 打印当前字符 (INT 21h AH=02h, DL=char)
+print_letter:
+	; 输出当前字母
 	MOV DL,AL
 	MOV AH,02h
 	INT 21h
 
-	; 增加本行计数
-	INC BL
-	CMP BL,13
-	JNE not_line_end
-	; 行满，输出 CRLF（使用功能9输出以 $ 结束的字符串）
+	; 处理分隔/换行
+	DEC BH
+	CMP BH,0
+	JNE do_space
+	; BH == 0: 行已满，输出 CRLF
 	MOV AH,09h
 	MOV DX,OFFSET CRLF
 	INT 21h
-	MOV BL,0
-	JMP next_char
+	MOV BH,13
+	JMP after_sep
 
-not_line_end:
-	; 输出空格作为分隔
+do_space:
 	MOV DL,' '
 	MOV AH,02h
 	INT 21h
 
-next_char:
+after_sep:
 	INC AL
-	; 如果超过 'z' 则结束
-	CMP AL,'z'
-	JG done_printing
-	JMP print_loop
+	DEC CX
+	JNZ print_letter	; 如果还有字母，继续
 
-done_printing:
-	; 如果最后一行未满，则输出回车换行
-	CMP BL,0
-	JE skip_crlf
+	; 循环结束后，如果最后一行未满（BH != 13）则输出换行
+	CMP BH,13
+	JE finish
 	MOV AH,09h
 	MOV DX,OFFSET CRLF
 	INT 21h
-skip_crlf:
+
+finish:
 	MOV AX,4C00H			; 设置程序正常结束功能号(4CH)和返回码(00H)
 	INT 21H				; 调用DOS中断21H，结束程序并返回到DOS
 MAIN ENDP				; 主程序结束
 CODESEG ENDS			; 代码段结束
-	END MAIN			; 程序结束，指定程序入口点为MAIN
+		END MAIN			; 程序结束，指定程序入口点为MAIN
