@@ -11,5 +11,5 @@ MAKE.EXE
 MASM.EXE
 SETENV.EXE
 *.OBJ
-
+*.o
 
