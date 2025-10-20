@@ -1,0 +1,9 @@
+作业题目2：按要求打印ASCII表
+基本要求：输出ASCII表中的小写字母部分，要求每行13个字符。
+1.用loop指令实现；
+注意双重循环中CX值的保存和恢复；
+D:N>ascii
+a b c d e f g h i j k l m
+n o p q r s t u v w x y z
+2.用条件跳转指令实现
+3.用C语言实现后察看反汇编代码并加注释
