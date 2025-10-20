@@ -4,7 +4,8 @@ STKSEG ENDS					; 堆栈段结束
 
 ; 定义数据段，用于存储程序的数据
 DATASEG SEGMENT
-	CRLF DB 13,10,'$'	        ; 不使用单一 MSG 字符串，用按字符输出
+	CRLF DB 13,10,'$'        ; 不使用单一 MSG 字符串，用按字符输出
+	CUR DB 'a'               ; 当前字符，避免使用 AL 被中断改写导致问题
 DATASEG ENDS					; 数据段结束
 
 ; 定义代码段，包含程序的执行代码
@@ -18,11 +19,12 @@ MAIN PROC FAR			; 定义主程序，FAR表示远过程调用
 	; BH = 每行剩余计数 (初始 13)
 	MOV CX,26
 	MOV BH,13
-	MOV AL,'a'
+	; 使用数据段变量 CUR 存放当前字符
+
 
 print_letter:
-	; 输出当前字母
-	MOV DL,AL
+	; 从数据段读取当前字母到 DL 并输出
+	MOV DL, [CUR]
 	MOV AH,02h
 	INT 21h
 
@@ -42,8 +44,10 @@ do_space:
 	MOV AH,02h
 	INT 21h
 
+
 after_sep:
-	INC AL
+	; 递增内存中的字符
+	INC BYTE PTR [CUR]
 	DEC CX
 	JNZ print_letter	; 如果还有字母，继续
 
