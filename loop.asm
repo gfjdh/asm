@@ -2,7 +2,7 @@ STKSEG SEGMENT STACK	; 定义堆栈段
 	DW 32 DUP(0)
 STKSEG ENDS
 
-DATASEG SEGMENT
+DATASEG SEGMENT		; 定义数据段
 	CRLF DB 13,10,'$'
 	CUR DB 'a'
 DATASEG ENDS
@@ -29,23 +29,23 @@ inner_loop:
 
 	; 如果这是本行的最后一个（CX==1），打印换行；否则打印空格
 	CMP CX,1
-	JE .print_crlf
+	JE .print_crlf	; 如果是最后一个字符，打印换行
 	MOV DL,' '
-	MOV AH,02h
+	MOV AH,02h		; 打印空格
 	INT 21h
-	JMP .after_sep
+	JMP .after_sep	; 跳过换行部分
 .print_crlf:
-	MOV AH,09h
-	MOV DX,OFFSET CRLF
-	INT 21h
+	MOV AH,09h		; 打印换行
+	MOV DX,OFFSET CRLF	; CRLF 字符串地址
+	INT 21h			; 调用 DOS 输出
 .after_sep:
 	; 递增字符
 	INC BYTE PTR [CUR]
-	LOOP inner_loop
+	LOOP inner_loop		; 继续内层循环
 
 	; 恢复外层 CX 并由 LOOP 控制外层迭代
-	POP CX
-	LOOP outer_loop
+	POP CX				; 恢复外层循环计数器
+	LOOP outer_loop		; 继续外层循环
 
 	; 程序正常结束
 	MOV AX,4C00H
