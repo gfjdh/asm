@@ -8,19 +8,22 @@ DATASEG SEGMENT
     ERRMSG DB 'Input out of range (1-100).$'
     CRLF DB 13,10,'$'
     INBUF DB 6,?,6 DUP(0)    ; DOS buffered input: first byte = max, second = actual count, then chars
-    ; 输出提示
-    MOV AH,09h
-    MOV DX,OFFSET PROMPT
+DATASEG ENDS
+
+CODESEG SEGMENT
+    ASSUME CS:CODESEG,DS:DATASEG
+MAIN PROC FAR
+    MOV AX,DATASEG
     MOV DS,AX
 
-    ; 输出提示
+    ; 输出提示（字符串以 '$' 结束）
     MOV AH,09h
-    MOV DX,OFFSET INBUF
+    MOV DX,OFFSET PROMPT
     INT 21h
 
-    ; 设置输入缓冲区最大长度为5 (允许最多 5 字符)
+    ; 设置输入缓冲区（DOS Buffered Input）
     MOV AH,0Ah
-    LEA DX,INBUF
+    MOV DX,OFFSET INBUF
     INT 21h
 
     ; INBUF+1 = 实际字符数 (不含回车)，INBUF+2.. = 字符
@@ -36,14 +39,10 @@ parse_loop:
     SUB DL,'0'
     CMP DL,9
     JA bad_input
-    ; AX = AX * 10  (AX small so safe)
-    MOV CX,AX
-    SHL AX,3          ; AX = AX * 8
-    MOV DX,AX
-    MOV AX,CX
-    SHL AX,1          ; AX = AX * 2
-    ADD DX,AX         ; DX = original * 10
-    MOV AX,DX
+    ; AX = AX * 10  (use 16x16 MUL to avoid improper operand types)
+    MOV BX,10
+    MUL BX            ; DX:AX = AX * BX
+    ; result in AX (low word), DX may contain high word (but small here)
     ; add digit (DL)
     MOV BH,0
     MOV BL,DL
@@ -92,7 +91,7 @@ parse_done:
 
     ; 输出换行
     MOV AH,09h
-    LEA DX,CRLF
+    MOV DX,OFFSET CRLF
     INT 21h
 
     ; 退出
