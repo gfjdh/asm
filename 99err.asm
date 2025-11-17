@@ -20,92 +20,174 @@ DATASEG ENDS                    ; 数据段结束
 
 CODESEG SEGMENT             ; 定义代码段
     ASSUME CS:CODESEG, DS:DATASEG, SS:STKSEG ; 设置段寄存器关联
+
+; ----------------------------
+; 基础输出过程
+; ----------------------------
+PRINT_STRING PROC NEAR
+; 入参: DX = 指向以'$'结尾的字符串
+    MOV AH, 09H
+    INT 21H
+    RET
+PRINT_STRING ENDP
+
+PRINT_CHAR PROC NEAR
+; 入参: DL = 字符
+    MOV AH, 02H
+    INT 21H
+    RET
+PRINT_CHAR ENDP
+
+PRINT_NEWLINE PROC NEAR
+; 打印 CRLF
+    PUSH DX
+    MOV DX, OFFSET NEWLINE
+    CALL PRINT_STRING
+    POP DX
+    RET
+PRINT_NEWLINE ENDP
+
+PRINT_DIGIT PROC NEAR
+; 入参: AL = 0..9 的数字，打印为字符
+    PUSH AX
+    PUSH DX
+    ADD AL, '0'
+    MOV DL, AL
+    CALL PRINT_CHAR
+    POP DX
+    POP AX
+    RET
+PRINT_DIGIT ENDP
+
+; ----------------------------
+; 计算与数据读取过程
+; ----------------------------
+CALC_EXPECTED PROC NEAR
+; 入参: SI=i, DI=j
+; 出参: CX = (i+1)*(j+1)
+; 改变: AX, BX, CX
+    PUSH AX
+    PUSH BX
+    MOV AX, SI       ; AX = i
+    INC AX           ; AX = i+1 (AL 有效)
+    MOV BX, DI       ; BX = j
+    INC BX           ; BX = j+1 (BL 有效)
+    MUL BL           ; AL * BL -> AX = (i+1)*(j+1)
+    MOV CX, AX       ; 期望值
+    POP BX
+    POP AX
+    RET
+CALC_EXPECTED ENDP
+
+GET_ACTUAL PROC NEAR
+; 入参: SI=i, DI=j
+; 出参: DX = TABLE[(i*9 + j)]
+; 改变: AX, BX, DX
+    PUSH AX
+    PUSH BX
+    MOV AX, SI       ; AX = i
+    MOV BX, 9
+    MUL BX           ; DX:AX = AX * BX (此处使用 16位乘，但 i<9，DX=0，AX=i*9)
+    ADD AX, DI       ; AX = i*9 + j
+    SHL AX, 1        ; 每项是字，偏移*2
+    MOV BX, AX
+    MOV DX, TABLE[BX]
+    POP BX
+    POP AX
+    RET
+GET_ACTUAL ENDP
+
+; ----------------------------
+; 输出错误信息过程
+; ----------------------------
+PRINT_ERROR PROC NEAR
+; 入参: SI=i, DI=j
+; 功能: 打印 "(i+1) (j+1)  error" 并换行
+    PUSH AX
+    PUSH DX
+    ; 打印行号 i+1
+    MOV AX, SI
+    INC AX
+    CALL PRINT_DIGIT
+    ; 空格
+    MOV DL, ' '
+    CALL PRINT_CHAR
+    ; 打印列号 j+1
+    MOV AX, DI
+    INC AX
+    CALL PRINT_DIGIT
+    ; 打印"  error"
+    MOV DX, OFFSET MSG2
+    CALL PRINT_STRING
+    ; 换行
+    CALL PRINT_NEWLINE
+    POP DX
+    POP AX
+    RET
+PRINT_ERROR ENDP
+
+; ----------------------------
+; 主检查循环过程
+; ----------------------------
+CHECK_TABLE PROC NEAR
+; 遍历 9x9，比较期望值与实际表值，若不等则打印错误
+    PUSH SI
+    PUSH DI
+    MOV SI, 0
+OUTER_LOOP:
+    CMP SI, 9
+    JGE CT_END
+    MOV DI, 0
+INNER_LOOP:
+    CMP DI, 9
+    JGE CT_NEXT_ROW
+
+    CALL CALC_EXPECTED  ; 出: CX
+    CALL GET_ACTUAL     ; 出: DX
+    CMP CX, DX
+    JE CT_SKIP_ERR
+    CALL PRINT_ERROR
+CT_SKIP_ERR:
+    INC DI
+    JMP INNER_LOOP
+
+CT_NEXT_ROW:
+    INC SI
+    JMP OUTER_LOOP
+
+CT_END:
+    POP DI
+    POP SI
+    RET
+CHECK_TABLE ENDP
+
+; ----------------------------
+; 程序入口（远过程）
+; ----------------------------
 MAIN PROC FAR               ; 主程序（远过程）
-    MOV AX, DATASEG         ; 将数据段地址加载到AX
-    MOV DS, AX              ; 设置DS指向数据段
-    ; 初始化堆栈段和栈指针（必须，否则中断/调用可能破坏内存或导致死机）
-    MOV AX, STKSEG         ; 将堆栈段地址加载到AX
-    MOV SS, AX             ; 设置SS指向堆栈段
-    MOV SP, 64             ; 设置SP到堆栈顶部（32个字 = 64字节）
+    MOV AX, DATASEG         ; 设置 DS
+    MOV DS, AX
+    ; 初始化堆栈段和栈指针（使用 CALL/RET 必须保证栈可用）
+    MOV AX, STKSEG
+    MOV SS, AX
+    MOV SP, 64              ; 32 个字 = 64 字节
 
-    ; 打印"x y"后跟换行
-    MOV AH, 09H             ; DOS功能号09H（显示字符串）
-    MOV DX, OFFSET MSG1     ; 加载MSG1的偏移地址
-    INT 21H                 ; 调用DOS中断
-    MOV DX, OFFSET NEWLINE  ; 加载换行字符串的偏移地址
-    INT 21H                 ; 打印换行
+    ; 打印标题并换行
+    MOV DX, OFFSET MSG1
+    CALL PRINT_STRING
+    CALL PRINT_NEWLINE
 
-    ; 初始化循环变量：SI为行索引（i），DI为列索引（j）
-    MOV SI, 0               ; SI = 0（i从0开始）
-OUTER_LOOP:                 ; 外循环开始
-    CMP SI, 9               ; 比较SI是否小于9
-    JGE END_OUTER           ; 如果SI >= 9，跳出外循环
-    MOV DI, 0               ; DI = 0（j从0开始）
-INNER_LOOP:                 ; 内循环开始 
-    CMP DI, 9               ; 比较DI是否小于9
-    JGE END_INNER           ; 如果DI >= 9，跳出内循环
+    ; 执行检查
+    CALL CHECK_TABLE
 
-    ; 计算期望值 (i+1) * (j+1)
-    MOV AX, SI              ; AX = i
-    INC AX                  ; AX = i+1
-    MOV BX, DI              ; BX = j
-    INC BX                  ; BX = j+1
-    MUL BL                  ; AX = AL * BL = (i+1) * (j+1)（结果在AX中）
-    MOV CX, AX              ; 保存期望值到CX
+    ; 收尾输出
+    MOV DX, OFFSET MSG3
+    CALL PRINT_STRING
+    CALL PRINT_NEWLINE
 
-    ; 计算数组元素地址：TABLE + (i*9 + j)*2
-    MOV AX, SI              ; AX = i
-    MOV BX, 9               ; BX = 9
-    MUL BX                  ; AX = i * 9
-    ADD AX, DI              ; AX = i*9 + j
-    SHL AX, 1               ; AX = (i*9 + j)*2（乘以2，因为元素为字类型）
-    MOV BX, AX              ; BX = 偏移量
-    MOV DX, TABLE[BX]       ; DX = 数组中的实际值
-
-    ; 比较实际值和期望值
-    CMP CX, DX              ; 比较CX（期望值）和DX（实际值）
-    JE SKIP_ERROR           ; 如果相等，跳过错误处理
-
-    ; 打印错误信息：行号(i+1)、空格、列号(j+1)、空格、"error"
-    MOV AX, SI              ; AX = i
-    INC AX                  ; AX = i+1
-    ADD AL, '0'             ; 转换为ASCII字符
-    MOV DL, AL              ; DL = 行号的ASCII字符
-    MOV AH, 02H             ; DOS功能号02H（显示字符）
-    INT 21H                 ; 打印行号
-    MOV DL, ' '             ; DL = 空格
-    MOV AH, 02H             ; 确保功能号为显示字符
-    INT 21H                 ; 打印空格
-    MOV AX, DI              ; AX = j
-    INC AX                  ; AX = j+1
-    ADD AL, '0'             ; 转换为ASCII字符
-    MOV DL, AL              ; DL = 列号的ASCII字符
-    MOV AH, 02H             ; 确保功能号为显示字符
-    INT 21H                 ; 打印列号
-    MOV AH, 09H             ; DOS功能号09H（显示字符串）
-    MOV DX, OFFSET MSG2     ; 加载MSG2的偏移地址（"  error"）
-    INT 21H                 ; 打印错误字符串
-    MOV DX, OFFSET NEWLINE  ; 加载换行字符串的偏移地址
-    INT 21H                 ; 打印换行
-
-SKIP_ERROR:
-    INC DI                  ; j++
-    JMP INNER_LOOP          ; 继续内循环
-END_INNER:
-    INC SI                  ; i++
-    JMP OUTER_LOOP          ; 继续外循环
-END_OUTER:
-
-    ; 打印"accomplish!"后跟换行
-    MOV AH, 09H             ; DOS功能号09H（显示字符串）
-    MOV DX, OFFSET MSG3     ; 加载MSG3的偏移地址
-    INT 21H                 ; 打印字符串
-    MOV DX, OFFSET NEWLINE  ; 加载换行字符串的偏移地址
-    INT 21H                 ; 打印换行
-
-    ; 程序结束
-    MOV AX, 4C00H           ; DOS功能号4CH（程序结束）
-    INT 21H                 ; 调用DOS中断
+    ; 退出到 DOS
+    MOV AX, 4C00H
+    INT 21H
 MAIN ENDP                   ; 主程序结束
 CODESEG ENDS                ; 代码段结束
     END MAIN                ; 程序入口点
