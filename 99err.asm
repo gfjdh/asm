@@ -12,9 +12,9 @@ DATASEG SEGMENT                 ; 定义数据段
           DW 7, 14, 21, 28, 35, 42, 49, 56, 63
           DW 8, 16, 24, 32, 40, 48, 56, 7,  72
           DW 9, 18, 27, 36, 45, 54, 63, 72, 81
-    MSG1 DB "x y$"              ; 定义字符串"x y"
-    MSG2 DB "  error$"          ; 定义字符串"  error"
-    MSG3 DB "accomplish!$"      ; 定义字符串"accomplish!"
+    MSG1 DB "x y$"              ; 定义字符串x y
+    MSG2 DB "  error$"          ; 定义字符串  error
+    MSG3 DB "accomplish!$"      ; 定义字符串accomplish!
     NEWLINE DB 0DH, 0AH, '$'    ; 定义回车换行字符串
 DATASEG ENDS                    ; 数据段结束
 
