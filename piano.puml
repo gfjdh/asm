@@ -1,0 +1,75 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+
+title DOS 钢琴 TSR 程序运行流程
+
+partition "安装阶段 (运行一次)" {
+  start
+  :程序启动 (Entry Point);
+  :设置 DS = CS;
+  :DOS INT 21h/35h\n获取旧 INT 09h 向量;
+  :保存旧向量到\nold_int9_seg:old_int9_off;
+  :DOS INT 21h/25h\n将 INT 09h 指向 new_int9;
+  :显示安装成功信息;
+  :DOS INT 27h\n终止并驻留 (TSR);
+  note right
+    只有 install 标签之前的
+    代码和数据保留在内存中
+  end note
+  stop
+}
+
+partition "驻留阶段 (每次按键触发)" {
+  :用户按下或松开键盘按键;
+  :CPU 触发 INT 09h;
+  :进入 new_int9;
+  
+  :保存寄存器 (Push All);
+  :设置 DS = CS (定位数据区);
+  :从端口 60h 读取扫描码 AL;
+
+  if (扫描码 == 3Bh (F1 按下)?) then (是)
+    :toggle_mode;
+    :异或 piano_active (0<->1);
+    if (piano_active == 0?) then (是)
+        :调用 speaker_off\n(确保静音);
+    endif
+    :跳转到 consume_key_ack;
+  elseif (扫描码 == 0BBh (F1 松开)?) then (是)
+    :跳转到 consume_key_ack;
+  else (否)
+    if (piano_active == 1?) then (是 - 钢琴模式开启)
+      :piano_handler;
+      if (AL bit 7 == 1 (键松开)?) then (是)
+        :取反码 (AL & 7Fh);
+        if (键在 note_table 中?) then (是)
+          :调用 speaker_off;
+        else (否)
+          :忽略;
+        endif
+      else (否 - 键按下)
+        if (键在 note_table 中?) then (是)
+          :从表读取频率除数 (BX);
+          :调用 speaker_on\n(操作端口 43h/42h/61h);
+        else (否)
+          :忽略;
+        endif
+      endif
+      :跳转到 consume_key_ack;
+    else (否 - 钢琴模式关闭)
+      :恢复寄存器 (Pop All);
+      :跳转到 old_int9_off\n(执行原本的键盘功能);
+      stop
+    endif
+  endif
+
+  label consume_key_ack
+  :硬件复位 (端口 61h);
+  :发送 EOI 到 PIC (端口 20h);
+  :恢复寄存器 (Pop All);
+  :IRET (中断返回);
+  stop
+}
+
+@enduml
